@@ -1,0 +1,669 @@
+====================================================================
+STRUCTURAL DESIGN PATTERNS - COMPLETE LLD GUIDE
+====================================================================
+
+Structural patterns batate hain ki classes aur objects ko kaise
+combine karke bade, flexible structures banaye jaayein - bina
+existing code todhe.
+
+7 Structural Patterns:
+1. Adapter
+2. Bridge
+3. Composite
+4. Decorator
+5. Facade
+6. Flyweight
+7. Proxy
+
+Interview me sabse zyada pucha jaata hai: Adapter, Decorator, Facade,
+Proxy. Bridge, Composite, Flyweight thoda kam frequent hote hain
+lekin concept clear hona chahiye.
+
+====================================================================
+1. ADAPTER PATTERN
+====================================================================
+
+KYA HAI?
+Do incompatible interfaces ko aapas me kaam karwane ke liye ek
+"middleman" (adapter) banate hain. Existing class ka code touch
+nahi karte, bas ek wrapper bana dete hain.
+
+REAL-WORLD ANALOGY:
+Indian plug ko US socket me lagana ho to tumhe ek "travel adapter"
+chahiye hota hai. Plug na change hota hai, na socket - beech me
+adapter fit ho jaata hai.
+
+KAB USE KARO?
+- Jab tumhare paas ek existing class hai jiska interface tumhare
+  naye system se match nahi karta
+- Third-party library integrate karte waqt jab uska interface
+  tumhare code ke expected interface se alag ho
+
+CODE:
+
+--------------------------------------------------------------
+// Target interface - jo client expect karta hai
+interface PaymentProcessor {
+    void pay(int amountInRupees);
+}
+
+// Existing incompatible class (third-party / legacy library)
+class StripeGateway {
+    // Stripe sirf USD me kaam karta hai aur alag method name hai
+    public void makePaymentInUSD(double amountInUSD) {
+        System.out.println("Stripe: Charged $" + amountInUSD);
+    }
+}
+
+// Adapter - StripeGateway ko PaymentProcessor interface ke
+// compatible banata hai
+class StripeAdapter implements PaymentProcessor {
+
+    private StripeGateway stripeGateway;
+
+    public StripeAdapter(StripeGateway stripeGateway) {
+        this.stripeGateway = stripeGateway;
+    }
+
+    @Override
+    public void pay(int amountInRupees) {
+        double amountInUSD = amountInRupees / 83.0; // conversion logic
+        stripeGateway.makePaymentInUSD(amountInUSD);
+    }
+}
+
+// Client code - sirf PaymentProcessor interface se matlab
+public class AdapterDemo {
+    public static void main(String[] args) {
+        PaymentProcessor processor = new StripeAdapter(new StripeGateway());
+        processor.pay(5000); // Rs 5000 -> auto converted to USD internally
+    }
+}
+--------------------------------------------------------------
+
+INTERVIEW TIP:
+Java me java.util.Arrays.asList() aur InputStreamReader
+(byte stream ko character stream me convert karta hai) - dono
+Adapter pattern ke real examples hain.
+
+====================================================================
+2. BRIDGE PATTERN
+====================================================================
+
+KYA HAI?
+Ek abstraction (kya karna hai) ko uske implementation (kaise
+karna hai) se decouple karte hain, taaki dono independently
+change ho sakein - without inheritance explosion.
+
+REAL-WORLD ANALOGY:
+TV Remote (abstraction) aur TV Brand (implementation) - ek hi
+remote design Sony, Samsung, LG sabke saath kaam kar sakta hai
+agar dono ke beech ek common "interface bridge" ho. Remote change
+kiye bina tum TV brand switch kar sakte ho.
+
+KAB USE KARO?
+- Jab class hierarchy me 2 independent dimensions ho (jaise Shape
+  x Color, ya Device x Remote) aur inheritance se combinations
+  explode ho rahe hon (RedCircle, BlueCircle, RedSquare... etc)
+
+CODE:
+
+--------------------------------------------------------------
+// Implementation hierarchy - "kaise karna hai"
+interface Device {
+    void turnOn();
+    void turnOff();
+    void setVolume(int level);
+}
+
+class TV implements Device {
+    public void turnOn() { System.out.println("TV turned ON"); }
+    public void turnOff() { System.out.println("TV turned OFF"); }
+    public void setVolume(int level) { System.out.println("TV volume: " + level); }
+}
+
+class Radio implements Device {
+    public void turnOn() { System.out.println("Radio turned ON"); }
+    public void turnOff() { System.out.println("Radio turned OFF"); }
+    public void setVolume(int level) { System.out.println("Radio volume: " + level); }
+}
+
+// Abstraction hierarchy - "kya karna hai" - Device ko hold karta hai (bridge)
+abstract class RemoteControl {
+    protected Device device;   // <-- ye hi bridge hai
+
+    public RemoteControl(Device device) {
+        this.device = device;
+    }
+
+    public abstract void pressPowerButton();
+}
+
+// Refined Abstraction
+class BasicRemote extends RemoteControl {
+    public BasicRemote(Device device) {
+        super(device);
+    }
+
+    public void pressPowerButton() {
+        device.turnOn();
+    }
+}
+
+class AdvancedRemote extends RemoteControl {
+    public AdvancedRemote(Device device) {
+        super(device);
+    }
+
+    public void pressPowerButton() {
+        device.turnOn();
+        device.setVolume(15); // extra feature
+    }
+}
+
+// Client
+public class BridgeDemo {
+    public static void main(String[] args) {
+        RemoteControl remote1 = new BasicRemote(new TV());
+        remote1.pressPowerButton();
+
+        RemoteControl remote2 = new AdvancedRemote(new Radio());
+        remote2.pressPowerButton();
+    }
+}
+--------------------------------------------------------------
+
+BRIDGE vs ADAPTER (interview question):
+Adapter existing incompatible code ko FIT karwata hai (after the
+fact). Bridge shuru se hi design ke time decouple karke banaya
+jaata hai (before the fact / upfront design decision).
+
+====================================================================
+3. COMPOSITE PATTERN
+====================================================================
+
+KYA HAI?
+Objects ko tree structure me arrange karte hain taaki individual
+objects aur groups of objects ko SAME tarike se treat kiya ja sake
+(uniform treatment).
+
+REAL-WORLD ANALOGY:
+File system - ek Folder ke andar Files bhi ho sakti hain aur
+Sub-folders bhi. Jab tum "folder size calculate karo" bologe, to
+wahi operation File pe bhi chalega aur Folder pe bhi - recursively.
+
+KAB USE KARO?
+- Jab data naturally tree/hierarchical structure me ho (org chart,
+  file system, UI component tree - Panel containing Buttons and
+  other Panels)
+
+CODE:
+
+--------------------------------------------------------------
+import java.util.ArrayList;
+import java.util.List;
+
+// Component - common interface for both Leaf and Composite
+interface FileSystemItem {
+    void showDetails(String indent);
+    int getSize();
+}
+
+// Leaf - individual object, no children
+class File implements FileSystemItem {
+    private String name;
+    private int size; // in KB
+
+    public File(String name, int size) {
+        this.name = name;
+        this.size = size;
+    }
+
+    public void showDetails(String indent) {
+        System.out.println(indent + "File: " + name + " (" + size + "KB)");
+    }
+
+    public int getSize() {
+        return size;
+    }
+}
+
+// Composite - container that can hold Files AND other Folders
+class Folder implements FileSystemItem {
+    private String name;
+    private List<FileSystemItem> items = new ArrayList<>();
+
+    public Folder(String name) {
+        this.name = name;
+    }
+
+    public void addItem(FileSystemItem item) {
+        items.add(item);
+    }
+
+    public void showDetails(String indent) {
+        System.out.println(indent + "Folder: " + name);
+        for (FileSystemItem item : items) {
+            item.showDetails(indent + "  "); // recursive call
+        }
+    }
+
+    // Composite ka size = sab children ka sum (recursive)
+    public int getSize() {
+        int total = 0;
+        for (FileSystemItem item : items) {
+            total += item.getSize();
+        }
+        return total;
+    }
+}
+
+// Client
+public class CompositeDemo {
+    public static void main(String[] args) {
+        File resume = new File("resume.pdf", 200);
+        File photo = new File("photo.png", 500);
+
+        Folder documents = new Folder("Documents");
+        documents.addItem(resume);
+
+        Folder rootFolder = new Folder("Root");
+        rootFolder.addItem(documents);
+        rootFolder.addItem(photo);
+
+        rootFolder.showDetails("");
+        System.out.println("Total Size: " + rootFolder.getSize() + "KB");
+    }
+}
+--------------------------------------------------------------
+
+====================================================================
+4. DECORATOR PATTERN
+====================================================================
+
+KYA HAI?
+Kisi object me naye behaviors/responsibilities DYNAMICALLY add
+karna, bina uski class modify kiye ya subclass banaye. Object ko
+"wrap" karke extra functionality add karte hain.
+
+REAL-WORLD ANALOGY:
+Coffee order karte waqt - Base coffee lo, phir chaho to Milk add
+karo, phir Sugar add karo, phir Whipped Cream add karo. Har addition
+ek "layer" hai jo price aur description dono ko badhata hai, bina
+original Coffee class ko touch kiye.
+
+KAB USE KARO?
+- Jab subclassing se combinations explode ho jayein (jaise
+  MilkSugarCoffee, MilkCreamCoffee, SugarCreamCoffee... too many)
+- Jab runtime pe dynamically features add/remove karne ho
+
+CODE:
+
+--------------------------------------------------------------
+// Component interface
+interface Coffee {
+    String getDescription();
+    double getCost();
+}
+
+// Concrete Component - base object
+class SimpleCoffee implements Coffee {
+    public String getDescription() { return "Simple Coffee"; }
+    public double getCost() { return 50.0; }
+}
+
+// Base Decorator - Coffee ko implement karta hai AND ek Coffee ko hold karta hai
+abstract class CoffeeDecorator implements Coffee {
+    protected Coffee decoratedCoffee;
+
+    public CoffeeDecorator(Coffee coffee) {
+        this.decoratedCoffee = coffee;
+    }
+}
+
+// Concrete Decorators - har ek ek layer add karta hai
+class MilkDecorator extends CoffeeDecorator {
+    public MilkDecorator(Coffee coffee) {
+        super(coffee);
+    }
+
+    public String getDescription() {
+        return decoratedCoffee.getDescription() + " + Milk";
+    }
+
+    public double getCost() {
+        return decoratedCoffee.getCost() + 10.0;
+    }
+}
+
+class SugarDecorator extends CoffeeDecorator {
+    public SugarDecorator(Coffee coffee) {
+        super(coffee);
+    }
+
+    public String getDescription() {
+        return decoratedCoffee.getDescription() + " + Sugar";
+    }
+
+    public double getCost() {
+        return decoratedCoffee.getCost() + 5.0;
+    }
+}
+
+// Client - decorators ko stack/chain kar sakte ho kisi bhi order me
+public class DecoratorDemo {
+    public static void main(String[] args) {
+        Coffee coffee = new SimpleCoffee();
+        coffee = new MilkDecorator(coffee);
+        coffee = new SugarDecorator(coffee);
+
+        System.out.println(coffee.getDescription() + " -> Rs. " + coffee.getCost());
+        // Output: Simple Coffee + Milk + Sugar -> Rs. 65.0
+    }
+}
+--------------------------------------------------------------
+
+REAL-WORLD JAVA EXAMPLE:
+java.io.BufferedReader(new FileReader("file.txt")) - ye Decorator
+pattern hai. FileReader ko BufferedReader "wrap" karke buffering
+capability add kar raha hai.
+
+====================================================================
+5. FACADE PATTERN
+====================================================================
+
+KYA HAI?
+Ek complex subsystem (multiple classes, complicated interactions)
+ke aage ek SIMPLE, unified interface bana dena, taaki client ko
+underlying complexity se deal na karna pade.
+
+REAL-WORLD ANALOGY:
+Car ka "Start" button - ek button dabate hi engine start hota hai,
+fuel injection hota hai, battery check hoti hai, ignition system
+trigger hota hai - client (driver) ko in sab steps ki complexity
+pata nahi chalti. Ek button = poora complex process hidden.
+
+KAB USE KARO?
+- Jab kisi subsystem (payment gateway, order processing, video
+  conversion) me bohot saari classes involve ho aur client ko
+  simple entry point chahiye
+
+CODE:
+
+--------------------------------------------------------------
+// Complex subsystem classes
+class InventoryService {
+    public boolean checkStock(String item) {
+        System.out.println("Checking stock for " + item);
+        return true;
+    }
+}
+
+class PaymentService {
+    public boolean processPayment(double amount) {
+        System.out.println("Processing payment of Rs. " + amount);
+        return true;
+    }
+}
+
+class ShippingService {
+    public void scheduleShipping(String item) {
+        System.out.println("Scheduling shipping for " + item);
+    }
+}
+
+class NotificationService {
+    public void sendConfirmation(String item) {
+        System.out.println("Sending order confirmation for " + item);
+    }
+}
+
+// Facade - simple interface hiding all the complexity above
+class OrderFacade {
+    private InventoryService inventoryService = new InventoryService();
+    private PaymentService paymentService = new PaymentService();
+    private ShippingService shippingService = new ShippingService();
+    private NotificationService notificationService = new NotificationService();
+
+    // Ek hi method call - client ko andar ka kuch pata nahi chalta
+    public void placeOrder(String item, double amount) {
+        if (inventoryService.checkStock(item)) {
+            if (paymentService.processPayment(amount)) {
+                shippingService.scheduleShipping(item);
+                notificationService.sendConfirmation(item);
+                System.out.println("Order placed successfully!");
+            }
+        }
+    }
+}
+
+// Client - itna simple lagta hai
+public class FacadeDemo {
+    public static void main(String[] args) {
+        OrderFacade orderFacade = new OrderFacade();
+        orderFacade.placeOrder("Laptop", 55000.0);
+    }
+}
+--------------------------------------------------------------
+
+INTERVIEW TIP:
+Facade "hides complexity" karta hai but naya functionality add
+nahi karta - sirf existing subsystem ko wrap karke simple banata
+hai. Spring me JdbcTemplate ek facade hai jo raw JDBC ki complexity
+(Connection, Statement, ResultSet handling) ko hide karta hai.
+
+====================================================================
+6. FLYWEIGHT PATTERN
+====================================================================
+
+KYA HAI?
+Jab bohot saare similar objects banane padein aur memory bachani
+ho, to common/shared data (intrinsic state) ko ek jagah rakho aur
+sirf unique data (extrinsic state) har object ke saath alag rakho.
+
+REAL-WORLD ANALOGY:
+Text editor me har character (letter) ek object hai. Agar "A"
+letter 10,000 baar document me use hua hai, to har jagah naya "A"
+object banana wasteful hai. Font, style (intrinsic - shared) ek hi
+rakho, sirf position (extrinsic - unique) har jagah alag rakho.
+
+KAB USE KARO?
+- Jab lakhon objects banane padein jinke paas bohot sa shared/common
+  data ho (game me trees/bullets, text editor me characters,
+  chess board pieces)
+
+CODE:
+
+--------------------------------------------------------------
+import java.util.HashMap;
+import java.util.Map;
+
+// Flyweight object - intrinsic (shared) state hold karta hai
+class TreeType {
+    private String name;   // shared: "Oak", "Pine"
+    private String color;  // shared
+    private String texture; // shared - heavy data (image), reuse karna zaroori hai
+
+    public TreeType(String name, String color, String texture) {
+        this.name = name;
+        this.color = color;
+        this.texture = texture;
+    }
+
+    public void draw(int x, int y) { // extrinsic state (x,y) parameter se aata hai
+        System.out.println("Drawing " + name + " tree at (" + x + "," + y + ") - Color: " + color);
+    }
+}
+
+// Flyweight Factory - same TreeType ko reuse karta hai, naya nahi banata baar baar
+class TreeFactory {
+    private static Map<String, TreeType> treeTypes = new HashMap<>();
+
+    public static TreeType getTreeType(String name, String color, String texture) {
+        String key = name + color + texture;
+        TreeType type = treeTypes.get(key);
+
+        if (type == null) {
+            type = new TreeType(name, color, texture);
+            treeTypes.put(key, type);
+            System.out.println("Creating NEW TreeType object: " + name);
+        }
+        return type; // existing object return - reuse
+    }
+}
+
+// Context object - extrinsic state (position) yahan store hota hai
+class Tree {
+    private int x, y;
+    private TreeType type; // reference to shared flyweight
+
+    public Tree(int x, int y, TreeType type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+    }
+
+    public void draw() {
+        type.draw(x, y);
+    }
+}
+
+// Client - forest me 10,000 trees ho sakte hain but sirf few TreeType objects
+public class FlyweightDemo {
+    public static void main(String[] args) {
+        TreeType oakType = TreeFactory.getTreeType("Oak", "Green", "OakTexture.png");
+
+        Tree tree1 = new Tree(10, 20, oakType);
+        Tree tree2 = new Tree(30, 40, oakType); // same TreeType reused, no new object
+
+        tree1.draw();
+        tree2.draw();
+    }
+}
+--------------------------------------------------------------
+
+NOTE: Java ka Integer.valueOf() cache (-128 to 127 ke liye) aur
+String pool - dono Flyweight pattern ke real examples hain.
+
+====================================================================
+7. PROXY PATTERN
+====================================================================
+
+KYA HAI?
+Ek object ka "placeholder/substitute" banate hain jo real object
+tak access ko control karta hai - extra logic add karne ke liye
+(lazy loading, access control, logging, caching) bina real object
+ka code touch kiye.
+
+REAL-WORLD ANALOGY:
+Credit Card - tumhare bank account (real object) ko directly har
+jagah access nahi karwate. Credit card (proxy) beech me hota hai
+jo transaction verify karta hai, limit check karta hai, phir asli
+account se paisa deduct hota hai.
+
+KAB USE KARO?
+- Lazy initialization (heavy object tabhi banao jab zaroorat ho)
+- Access control (kuch users ko permission na ho)
+- Logging/caching layer add karni ho existing service ke upar
+
+CODE (Virtual Proxy - Lazy Loading example):
+
+--------------------------------------------------------------
+// Common interface
+interface Image {
+    void display();
+}
+
+// Real Object - heavy object, banana costly hai (jaise disk se load karna)
+class RealImage implements Image {
+    private String filename;
+
+    public RealImage(String filename) {
+        this.filename = filename;
+        loadFromDisk(); // expensive operation - constructor me hi ho jaata hai
+    }
+
+    private void loadFromDisk() {
+        System.out.println("Loading image from disk: " + filename);
+    }
+
+    public void display() {
+        System.out.println("Displaying: " + filename);
+    }
+}
+
+// Proxy - RealImage ko tabhi banayega jab actually zaroorat ho (lazy)
+class ProxyImage implements Image {
+    private RealImage realImage;
+    private String filename;
+
+    public ProxyImage(String filename) {
+        this.filename = filename; // abhi heavy object NAHI banaya
+    }
+
+    public void display() {
+        if (realImage == null) {
+            realImage = new RealImage(filename); // ab banaya, jab zaroorat padi
+        }
+        realImage.display();
+    }
+}
+
+// Client
+public class ProxyDemo {
+    public static void main(String[] args) {
+        Image image = new ProxyImage("large_photo.jpg");
+
+        System.out.println("Image object created, but not loaded yet.");
+
+        image.display(); // ab jaake actual load hoga
+        image.display(); // dobara call - already loaded hai, load nahi hoga dubara
+    }
+}
+--------------------------------------------------------------
+
+PROXY vs DECORATOR (interview favourite question):
+Proxy access CONTROL karta hai (kab, kaise, kaun access kare) -
+same interface, different purpose (security/lazy-loading).
+Decorator naya BEHAVIOR/feature add karta hai object me. Dono
+dikhte similar hain (wrapping) lekin INTENT alag hai.
+
+Spring me @Transactional, @Cacheable annotations AOP proxies use
+karte hain - Spring internally proxy object banata hai jo actual
+method call se pehle/baad me extra logic (transaction begin/commit)
+inject karta hai.
+
+====================================================================
+QUICK RECAP TABLE - SAB PATTERNS EK NAZAR ME
+====================================================================
+
+Pattern      | Problem Solve Karta Hai                | Real Example
+-------------|------------------------------------------|---------------------------
+Adapter      | Incompatible interfaces ko compatible bana| InputStreamReader, Arrays.asList()
+Bridge       | Abstraction/Implementation ko decouple    | Remote x Device (TV/Radio)
+Composite    | Tree structure, uniform treatment         | File System (File/Folder)
+Decorator    | Runtime pe behavior dynamically add karna | BufferedReader wrapping, Coffee toppings
+Facade       | Complex subsystem ko simple interface     | JdbcTemplate, Car start button
+Flyweight    | Memory bachana - shared common data       | String pool, Integer cache
+Proxy        | Access control / lazy loading             | Spring @Transactional proxy, Credit card
+
+====================================================================
+INTERVIEW PREP TIP (LLD ke liye)
+====================================================================
+
+Tumhare Parking Lot System practice ke context me:
+- FACADE   -> ParkingLotFacade jo entry/exit/payment sab ek simple
+              method ke peeche hide kare.
+- DECORATOR-> Agar different vehicle types pe extra charges
+              (EV charging fee, VIP slot fee) dynamically add
+              karne ho bina Vehicle class change kiye.
+- PROXY    -> Agar parking slot availability check karne ke liye
+              caching layer add karni ho (real DB call se pehle).
+- COMPOSITE-> Agar Parking Lot me multiple Floors ho aur har Floor
+              me multiple Sections/Slots ho - tree structure me.
+
+Agla step: Behavioral Patterns (Strategy, Observer, Command,
+State, Template Method, Chain of Responsibility, Iterator,
+Visitor) ka README/TXT bhi bana doon? Wahi patterns interview me
+Strategy aur Observer sabse zyada pucha jaata hai.
+====================================================================
