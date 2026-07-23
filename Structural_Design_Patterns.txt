@@ -1,6 +1,4 @@
-====================================================================
-STRUCTURAL DESIGN PATTERNS - COMPLETE LLD GUIDE
-====================================================================
+
 
 Structural patterns batate hain ki classes aur objects ko kaise
 combine karke bade, flexible structures banaye jaayein - bina
